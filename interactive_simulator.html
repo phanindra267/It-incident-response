@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive War-Room Multi-Agent Animated Simulator</title>
+    <style>
+        :root {
+            --bg: #090d16;
+            --card-bg: #111827;
+            --border: #1f293d;
+            --cyan: #0ea5e9;
+            --green: #10b981;
+            --rose: #f43f5e;
+            --purple: #a855f7;
+            --amber: #f59e0b;
+            --text-white: #f8fafc;
+            --text-muted: #94a3b8;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            background: var(--bg);
+            color: var(--text-white);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Top Header */
+        header {
+            background: rgba(17, 24, 39, 0.85);
+            backdrop-filter: blur(8px);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        .badge {
+            background: rgba(14, 165, 233, 0.15);
+            border: 1px solid var(--cyan);
+            color: var(--cyan);
+            font-size: 11px;
+            font-weight: 700;
+            padding: 4px 10px;
+            border-radius: 9999px;
+            text-transform: uppercase;
+        }
+        .brand h1 { font-size: 18px; font-weight: 700; }
+
+        /* Control Bar */
+        .controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+        button {
+            background: #1e293b;
+            color: var(--text-white);
+            border: 1px solid var(--border);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-size: 13px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+        }
+        button:hover { background: #334155; border-color: var(--cyan); }
+        button.primary { background: #0284c7; border-color: var(--cyan); color: #fff; }
+        button.primary:hover { background: #0369a1; }
+        button.rec-btn { background: #e11d48; border-color: #f43f5e; color: #fff; }
+        button.rec-btn:hover { background: #be123c; }
+
+        /* Main Stage Grid */
+        .stage-container {
+            display: grid;
+            grid-template-columns: 1fr 380px;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+        }
+
+        /* Canvas Arena */
+        .arena-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .arena-header {
+            padding: 14px 20px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .arena-header h2 { font-size: 14px; font-weight: 600; color: var(--text-muted); }
+        .progress-pill {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--cyan);
+            background: rgba(14, 165, 233, 0.1);
+            padding: 4px 10px;
+            border-radius: 20px;
+        }
+
+        .canvas-wrapper {
+            position: relative;
+            flex: 1;
+            min-height: 520px;
+        }
+        svg#networkSvg {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            z-index: 1;
+        }
+
+        /* Center Blackboard */
+        .blackboard-node {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 250px;
+            height: 250px;
+            border-radius: 50%;
+            background: radial-gradient(circle, #172554 0%, #0b1329 80%);
+            border: 2px solid var(--cyan);
+            box-shadow: 0 0 35px rgba(14, 165, 233, 0.25);
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            padding: 20px;
+            z-index: 10;
+            transition: all 0.4s ease;
+        }
+        .blackboard-node.active-bb {
+            box-shadow: 0 0 50px rgba(14, 165, 233, 0.6);
+            border-color: #38bdf8;
+            transform: translate(-50%, -50%) scale(1.04);
+        }
+        .blackboard-title { font-size: 13px; font-weight: 800; color: var(--cyan); letter-spacing: 1px; }
+        .blackboard-sub { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+        .bb-counter {
+            font-size: 26px;
+            font-weight: 800;
+            color: #fff;
+            margin: 10px 0 4px;
+        }
+        .bb-status-pill {
+            font-size: 10px;
+            padding: 2px 8px;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--green);
+            border-radius: 10px;
+            border: 1px solid var(--green);
+        }
+
+        /* Peripheral Agent Nodes */
+        .agent-node {
+            position: absolute;
+            width: 140px;
+            padding: 12px 14px;
+            background: #1e293b;
+            border: 2px solid var(--border);
+            border-radius: 10px;
+            z-index: 10;
+            cursor: pointer;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            text-align: center;
+            box-shadow: 0 6px 16px rgba(0,0,0,0.4);
+        }
+        .agent-node:hover { transform: scale(1.08); }
+        .agent-node.active {
+            border-color: #fff !important;
+            box-shadow: 0 0 25px currentColor;
+            transform: scale(1.12);
+        }
+        .agent-node .icon { font-size: 22px; margin-bottom: 4px; }
+        .agent-node .name { font-size: 12px; font-weight: 700; color: #fff; }
+        .agent-node .role { font-size: 10px; color: var(--text-muted); margin-top: 2px; }
+        .agent-node .status-dot {
+            display: inline-block;
+            width: 7px; height: 7px;
+            border-radius: 50%;
+            background: #64748b;
+            margin-right: 4px;
+        }
+        .agent-node.active .status-dot { background: #fff; box-shadow: 0 0 8px #fff; }
+
+        /* Specific node coordinates (Circular layout around center) */
+        #node-alert      { top: 10%;  left: 50%; transform: translateX(-50%); border-color: var(--rose); }
+        #node-dependency { top: 25%;  left: 82%; transform: translate(-50%, -50%); border-color: var(--purple); }
+        #node-logs       { top: 75%;  left: 82%; transform: translate(-50%, -50%); border-color: var(--amber); }
+        #node-mitigation { top: 90%;  left: 50%; transform: translateX(-50%); border-color: var(--cyan); }
+        #node-commander  { top: 75%;  left: 18%; transform: translate(-50%, -50%); border-color: var(--green); }
+        #node-comms      { top: 25%;  left: 18%; transform: translate(-50%, -50%); border-color: var(--purple); }
+
+        /* Right Inspector Sidebar */
+        .inspector-card {
+            background: var(--card-bg);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+        .inspector-header {
+            padding: 16px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(15, 23, 42, 0.6);
+        }
+        .inspector-header h3 { font-size: 14px; font-weight: 700; }
+        .inspector-body {
+            padding: 16px;
+            flex: 1;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+        .step-card {
+            background: #0f172a;
+            border-left: 4px solid var(--cyan);
+            border-radius: 6px;
+            padding: 12px;
+            border-top: 1px solid var(--border);
+            border-right: 1px solid var(--border);
+            border-bottom: 1px solid var(--border);
+            transition: all 0.3s;
+        }
+        .step-card.active-step {
+            border-left-color: var(--green);
+            background: #172554;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+        .step-time { font-size: 11px; font-weight: 700; color: var(--cyan); }
+        .step-title { font-size: 12px; font-weight: 700; margin: 4px 0; color: #fff; }
+        .step-desc { font-size: 11px; color: var(--text-muted); line-height: 1.4; }
+        pre.code-block {
+            background: #090d16;
+            border: 1px solid #1e293b;
+            padding: 8px;
+            border-radius: 4px;
+            font-family: Consolas, monospace;
+            font-size: 10px;
+            color: #38bdf8;
+            margin-top: 6px;
+            white-space: pre-wrap;
+        }
+
+        /* SVG Line Animation */
+        .pulse-line {
+            stroke-dasharray: 8;
+            animation: dash 1s linear infinite;
+        }
+        @keyframes dash {
+            to { stroke-dashoffset: -16; }
+        }
+
+        /* Bottom Timeline Bar */
+        footer.timeline-bar {
+            background: var(--card-bg);
+            border-top: 1px solid var(--border);
+            padding: 14px 24px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .scrubber-container {
+            flex: 1;
+            position: relative;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--cyan);
+            cursor: pointer;
+        }
+        .step-labels {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+    </style>
+</head>
+<body>
+
+    <header>
+        <div class="brand">
+            <span class="badge">Group 10 Project</span>
+            <h1>IT Incident Response War-Room: Interactive Animated Simulator</h1>
+        </div>
+        <div class="controls">
+            <button id="prevBtn">⏮ Prev</button>
+            <button id="playBtn" class="primary">▶ Play Simulation</button>
+            <button id="nextBtn">⏭ Next</button>
+            <button id="resetBtn">↺ Reset</button>
+            <button id="recBtn" class="rec-btn">⏺ Screen Record Video</button>
+        </div>
+    </header>
+
+    <div class="stage-container">
+        
+        <!-- Left: Visual Simulation Arena -->
+        <div class="arena-card">
+            <div class="arena-header">
+                <h2>Blackboard War-Room Mesh Topology</h2>
+                <div class="progress-pill" id="stepPill">Step 0 of 6: Ready</div>
+            </div>
+
+            <div class="canvas-wrapper" id="canvasArena">
+                <!-- SVG Connector Canvas -->
+                <svg id="networkSvg">
+                    <line id="line-alert" stroke="#334155" stroke-width="2"/>
+                    <line id="line-dependency" stroke="#334155" stroke-width="2"/>
+                    <line id="line-logs" stroke="#334155" stroke-width="2"/>
+                    <line id="line-mitigation" stroke="#334155" stroke-width="2"/>
+                    <line id="line-commander" stroke="#334155" stroke-width="2"/>
+                    <line id="line-comms" stroke="#334155" stroke-width="2"/>
+                </svg>
+
+                <!-- Center Shared Memory Blackboard -->
+                <div class="blackboard-node" id="centerBlackboard">
+                    <div class="blackboard-title">SHARED BLACKBOARD</div>
+                    <div class="blackboard-sub">Thread-Safe Memory</div>
+                    <div class="bb-counter" id="entryCount">0</div>
+                    <div class="bb-status-pill" id="bbLockStatus">MUTEX: IDLE</div>
+                </div>
+
+                <!-- 6 Specialized Agent Nodes -->
+                <div class="agent-node" id="node-alert" style="color: var(--rose);">
+                    <div class="icon">🚨</div>
+                    <div class="name">Alert Agent</div>
+                    <div class="role"><span class="status-dot"></span>Ingestion</div>
+                </div>
+
+                <div class="agent-node" id="node-dependency" style="color: var(--purple);">
+                    <div class="icon">🕸️</div>
+                    <div class="name">Dependency</div>
+                    <div class="role"><span class="status-dot"></span>Topology Map</div>
+                </div>
+
+                <div class="agent-node" id="node-logs" style="color: var(--amber);">
+                    <div class="icon">📋</div>
+                    <div class="name">Logs Agent</div>
+                    <div class="role"><span class="status-dot"></span>Telemetry</div>
+                </div>
+
+                <div class="agent-node" id="node-mitigation" style="color: var(--cyan);">
+                    <div class="icon">🛠️</div>
+                    <div class="name">Mitigation</div>
+                    <div class="role"><span class="status-dot"></span>Action Engine</div>
+                </div>
+
+                <div class="agent-node" id="node-commander" style="color: var(--green);">
+                    <div class="icon">🎖️</div>
+                    <div class="name">Commander</div>
+                    <div class="role"><span class="status-dot"></span>Decision Gate</div>
+                </div>
+
+                <div class="agent-node" id="node-comms" style="color: var(--purple);">
+                    <div class="icon">📢</div>
+                    <div class="name">Comms Agent</div>
+                    <div class="role"><span class="status-dot"></span>Status Update</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right: Real-time Telemetry & Ledger Inspector -->
+        <div class="inspector-card">
+            <div class="inspector-header">
+                <h3>Live Event Stream & Provenance Ledger</h3>
+            </div>
+            <div class="inspector-body" id="feedContainer">
+                <div class="step-card" id="card-0">
+                    <div class="step-time">T + 0.00s | STANDBY</div>
+                    <div class="step-title">War-Room Initialized</div>
+                    <div class="step-desc">Blackboard mutex lock acquired. All 6 daemon agents running and listening for incident signals.</div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- Bottom Scrubber & Time Controls -->
+    <footer class="timeline-bar">
+        <span style="font-size: 12px; font-weight: 700; color: var(--cyan);">INCIDENT TIMELINE</span>
+        <div class="scrubber-container">
+            <input type="range" id="scrubber" min="0" max="6" value="0" step="1">
+            <div class="step-labels">
+                <span>0: Standby</span>
+                <span>1: Alert</span>
+                <span>2: Graph</span>
+                <span>3: Logs</span>
+                <span>4: Mitigation</span>
+                <span>5: Commander</span>
+                <span>6: Status Page</span>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+        // Simulation Sequence Steps
+        const steps = [
+            {
+                step: 1,
+                time: "T + 0.00s",
+                agent: "node-alert",
+                line: "line-alert",
+                color: "#f43f5e",
+                title: "Alert Agent: Signal Normalization",
+                desc: "Ingested Sev-1 signal: service='payment-gateway', symptom='504 Timeout: Connection Pool Exhausted'. Mutex locked, entry posted.",
+                payload: '{\n  "type": "alert",\n  "service": "payment-gateway",\n  "severity": "high",\n  "symptom": "DB Pool Exhaustion"\n}',
+                entries: 1
+            },
+            {
+                step: 2,
+                time: "T + 0.82s",
+                agent: "node-dependency",
+                line: "line-dependency",
+                color: "#a855f7",
+                title: "Dependency Agent: Blast Radius Analysis",
+                desc: "Traversed microservice architecture. Identified critical upstream callers: checkout-service, api-gateway. Downstream: postgres-master.",
+                payload: '{\n  "type": "dependency",\n  "upstream": ["checkout-service", "api-gateway"],\n  "downstream": ["postgres-master"]\n}',
+                entries: 2
+            },
+            {
+                step: 3,
+                time: "T + 0.89s",
+                agent: "node-logs",
+                line: "line-logs",
+                color: "#f59e0b",
+                title: "Logs Agent: Telemetry Isolation",
+                desc: "Extracted fatal error signatures from telemetry stream: 'ERROR: connection pool exhausted at conn 500', 504 spike detected.",
+                payload: '{\n  "type": "logs",\n  "traces": ["FATAL: pool exhausted at 500", "Worker timeout 30s"],\n  "ref": 1793773926\n}',
+                entries: 3
+            },
+            {
+                step: 4,
+                time: "T + 1.12s",
+                agent: "node-mitigation",
+                line: "line-mitigation",
+                color: "#0ea5e9",
+                title: "Mitigation Agent: Evidence Quorum Verified",
+                desc: "Evidence quorum satisfied (logs + dependency available). Formulated action: 'rollback' to previous stable container revision.",
+                payload: '{\n  "type": "mitigation",\n  "action": "rollback",\n  "confidence": 0.98,\n  "target": "v2.4.0 (stable)"\n}',
+                entries: 4
+            },
+            {
+                step: 5,
+                time: "T + 1.25s",
+                agent: "node-commander",
+                line: "line-commander",
+                color: "#10b981",
+                title: "Incident Commander: Operational Ratification",
+                desc: "Evaluated evidence pool. Ratified mitigation: Proceed with 'rollback'. Generated and permanently locked Markdown Postmortem Timeline.",
+                payload: '{\n  "type": "decision",\n  "action": "rollback",\n  "timeline_status": "LOCKED",\n  "postmortem": "Generated"\n}',
+                entries: 6
+            },
+            {
+                step: 6,
+                time: "T + 1.41s",
+                agent: "node-comms",
+                line: "line-comms",
+                color: "#a855f7",
+                title: "Comms Agent: Public Status-Page Synthesis",
+                desc: "Group-of-3 Add-on activated. Translated technical decision into clear, stakeholder-ready public status announcement for Sev-1.",
+                payload: '## Incident Update - payment-gateway\nSeverity: High (Sev-1) | Mitigating\nAutomated rollback authorized and applied.',
+                entries: 7
+            }
+        ];
+
+        let currentStep = 0;
+        let isPlaying = false;
+        let playInterval = null;
+
+        // Position SVG Connector Lines
+        function updateLines() {
+            const bb = document.getElementById('centerBlackboard').getBoundingClientRect();
+            const arena = document.getElementById('canvasArena').getBoundingClientRect();
+            const bbCenter = {
+                x: bb.left - arena.left + bb.width / 2,
+                y: bb.top - arena.top + bb.height / 2
+            };
+
+            const agentIds = ['alert', 'dependency', 'logs', 'mitigation', 'commander', 'comms'];
+            agentIds.forEach(id => {
+                const node = document.getElementById(`node-${id}`);
+                const line = document.getElementById(`line-${id}`);
+                if (!node || !line) return;
+                const rect = node.getBoundingClientRect();
+                const nodeCenter = {
+                    x: rect.left - arena.left + rect.width / 2,
+                    y: rect.top - arena.top + rect.height / 2
+                };
+                line.setAttribute('x1', nodeCenter.x);
+                line.setAttribute('y1', nodeCenter.y);
+                line.setAttribute('x2', bbCenter.x);
+                line.setAttribute('y2', bbCenter.y);
+            });
+        }
+
+        window.addEventListener('resize', updateLines);
+        window.addEventListener('load', updateLines);
+        setTimeout(updateLines, 200);
+
+        function renderStep(targetStep) {
+            currentStep = Math.max(0, Math.min(targetStep, steps.length));
+            document.getElementById('scrubber').value = currentStep;
+            document.getElementById('stepPill').innerText = `Step ${currentStep} of ${steps.length}: ${currentStep === 0 ? "Standby" : steps[currentStep-1].title.split(':')[0]}`;
+
+            // Reset visual states
+            document.querySelectorAll('.agent-node').forEach(n => n.classList.remove('active'));
+            document.querySelectorAll('line').forEach(l => {
+                l.setAttribute('stroke', '#334155');
+                l.setAttribute('stroke-width', '2');
+                l.classList.remove('pulse-line');
+            });
+
+            const bb = document.getElementById('centerBlackboard');
+            if (currentStep === 0) {
+                bb.classList.remove('active-bb');
+                document.getElementById('entryCount').innerText = "0";
+                document.getElementById('bbLockStatus').innerText = "MUTEX: IDLE";
+                document.getElementById('bbLockStatus').style.color = "var(--green)";
+            } else {
+                bb.classList.add('active-bb');
+                const curr = steps[currentStep - 1];
+                document.getElementById('entryCount').innerText = curr.entries;
+                document.getElementById('bbLockStatus').innerText = "MUTEX: WRITING";
+                document.getElementById('bbLockStatus').style.color = "var(--cyan)";
+
+                // Highlight active agent & line
+                const activeNode = document.getElementById(curr.agent);
+                if (activeNode) activeNode.classList.add('active');
+
+                const activeLine = document.getElementById(curr.line);
+                if (activeLine) {
+                    activeLine.setAttribute('stroke', curr.color);
+                    activeLine.setAttribute('stroke-width', '4');
+                    activeLine.classList.add('pulse-line');
+                }
+            }
+
+            // Update Feed
+            const feed = document.getElementById('feedContainer');
+            feed.innerHTML = `
+                <div class="step-card">
+                    <div class="step-time">T + 0.00s | STANDBY</div>
+                    <div class="step-title">War-Room Initialized</div>
+                    <div class="step-desc">Blackboard mutex lock acquired. All 6 daemon agents listening.</div>
+                </div>
+            `;
+
+            for (let i = 0; i < currentStep; i++) {
+                const s = steps[i];
+                const card = document.createElement('div');
+                card.className = `step-card ${i === currentStep - 1 ? 'active-step' : ''}`;
+                card.style.borderLeftColor = s.color;
+                card.innerHTML = `
+                    <div class="step-time">${s.time}</div>
+                    <div class="step-title">${s.title}</div>
+                    <div class="step-desc">${s.desc}</div>
+                    <pre class="code-block">${s.payload}</pre>
+                `;
+                feed.appendChild(card);
+            }
+            feed.scrollTop = feed.scrollHeight;
+        }
+
+        // Play/Pause Controller
+        document.getElementById('playBtn').addEventListener('click', () => {
+            if (isPlaying) {
+                pause();
+            } else {
+                play();
+            }
+        });
+
+        function play() {
+            isPlaying = true;
+            document.getElementById('playBtn').innerText = "⏸ Pause Simulation";
+            if (currentStep >= steps.length) currentStep = 0;
+            playInterval = setInterval(() => {
+                if (currentStep < steps.length) {
+                    renderStep(currentStep + 1);
+                } else {
+                    pause();
+                }
+            }, 1800);
+        }
+
+        function pause() {
+            isPlaying = false;
+            document.getElementById('playBtn').innerText = "▶ Play Simulation";
+            clearInterval(playInterval);
+        }
+
+        document.getElementById('nextBtn').addEventListener('click', () => { pause(); renderStep(currentStep + 1); });
+        document.getElementById('prevBtn').addEventListener('click', () => { pause(); renderStep(currentStep - 1); });
+        document.getElementById('resetBtn').addEventListener('click', () => { pause(); renderStep(0); });
+        document.getElementById('scrubber').addEventListener('input', (e) => { pause(); renderStep(parseInt(e.target.value)); });
+
+        // Agent node clicks
+        steps.forEach((s, idx) => {
+            document.getElementById(s.agent).addEventListener('click', () => {
+                pause();
+                renderStep(idx + 1);
+            });
+        });
+
+        // Built-in Screen Recorder using MediaRecorder API!
+        let mediaRecorder;
+        let recordedChunks = [];
+        const recBtn = document.getElementById('recBtn');
+
+        recBtn.addEventListener('click', async () => {
+            if (recBtn.innerText.includes('Record')) {
+                try {
+                    const stream = await navigator.mediaDevices.getDisplayMedia({
+                        video: { displaySurface: "browser" },
+                        audio: false
+                    });
+                    recordedChunks = [];
+                    mediaRecorder = new MediaRecorder(stream, { mimeType: 'video/webm; codecs=vp9' });
+                    mediaRecorder.ondataavailable = e => { if (e.data.size > 0) recordedChunks.push(e.data); };
+                    mediaRecorder.onstop = () => {
+                        const blob = new Blob(recordedChunks, { type: 'video/webm' });
+                        const url = URL.createObjectURL(blob);
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = 'WarRoom_MultiAgent_Interactive_Simulation.webm';
+                        a.click();
+                        recBtn.innerText = "⏺ Screen Record Video";
+                        recBtn.classList.remove('primary');
+                        recBtn.classList.add('rec-btn');
+                    };
+                    mediaRecorder.start();
+                    recBtn.innerText = "⏹ Stop & Save Video";
+                    recBtn.classList.remove('rec-btn');
+                    recBtn.classList.add('primary');
+
+                    // Automatically start simulation
+                    renderStep(0);
+                    play();
+                } catch (err) {
+                    alert("Screen capture was cancelled or not supported in this browser.");
+                }
+            } else {
+                mediaRecorder.stop();
+            }
+        });
+    </script>
+</body>
+</html>
